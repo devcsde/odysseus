@@ -2242,11 +2242,24 @@ function initMcpForm() {
   }
 
   transportSel.addEventListener('change', () => {
-    const isSse = transportSel.value === 'sse';
-    sseRow.style.display = isSse ? '' : 'none';
-    cmdRow.style.display = isSse ? 'none' : '';
-    if (isSse) { _clearEnvFields(); helpBox.style.display = 'none'; }
+    const transport = transportSel.value;
+    const isUrl = transport === 'sse' || transport === 'http';
+    sseRow.style.display = isUrl ? '' : 'none';
+    cmdRow.style.display = isUrl ? 'none' : '';
+    const headersRow = el('adm-mcpHeadersRow');
+    if (headersRow) headersRow.style.display = isUrl ? '' : 'none';
+    if (isUrl) { _clearEnvFields(); helpBox.style.display = 'none'; }
   });
+
+  if (sseRow && !el('adm-mcpHeadersRow')) {
+    const headersRow = document.createElement('div');
+    headersRow.id = 'adm-mcpHeadersRow';
+    headersRow.className = 'admin-model-form-row';
+    headersRow.style.display = 'none';
+    headersRow.innerHTML = '<span style="font-size:11px;opacity:0.55;min-width:0;white-space:nowrap;">Custom Headers (JSON)</span>'
+      + '<input id="adm-mcpHeaders" class="admin-model-form-row input" placeholder=\'{"Authorization": "Bearer sk_..."}\' style="flex:1;">';
+    sseRow.parentNode.insertBefore(headersRow, sseRow.nextSibling);
+  }
 
   // Preset catalog
   const presetSel = el('adm-mcpPreset');
@@ -2287,10 +2300,18 @@ function initMcpForm() {
     const msg = el('adm-mcpMsg');
     if (!name) { msg.textContent = 'Name is required'; msg.className = 'admin-error'; return; }
     if (transport === 'stdio' && !command) { msg.textContent = 'Command is required for stdio'; msg.className = 'admin-error'; return; }
-    if (transport === 'sse' && !url) { msg.textContent = 'URL is required for SSE'; msg.className = 'admin-error'; return; }
+    if ((transport === 'sse' || transport === 'http') && !url) { msg.textContent = 'URL is required for SSE/HTTP'; msg.className = 'admin-error'; return; }
     try { JSON.parse(env); } catch { msg.textContent = 'Env must be valid JSON'; msg.className = 'admin-error'; return; }
+    const headersRaw = (el('adm-mcpHeaders')?.value || '').trim();
+    if (headersRaw) {
+      try {
+        const parsed = JSON.parse(headersRaw);
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('not object');
+      } catch { msg.textContent = 'Headers must be a valid JSON object'; msg.className = 'admin-error'; return; }
+    }
     const fd = new FormData();
     fd.append('name', name); fd.append('transport', transport); fd.append('command', command); fd.append('args', args); fd.append('env', env); fd.append('url', url);
+    if (headersRaw) fd.append('headers', headersRaw);
     // If preset has oauthFile config, send credentials for file generation
     if (_activeOauthFile) {
       const envObj = JSON.parse(env);
@@ -2316,6 +2337,7 @@ function initMcpForm() {
         msg.textContent = `Added ${name} (${data.tool_count} tools discovered)`; msg.className = 'admin-success';
       } else { msg.textContent = `Added but connection failed: ${data.error || 'unknown'}`; msg.className = 'admin-error'; }
       el('adm-mcpName').value = ''; el('adm-mcpCommand').value = ''; el('adm-mcpArgs').value = ''; el('adm-mcpUrl').value = '';
+      const headersInput = el('adm-mcpHeaders'); if (headersInput) headersInput.value = '';
       _clearEnvFields(); helpBox.style.display = 'none'; _activeHelp = null; _activeOauthFile = null; _activeOauth = null;
       loadMcpServers();
     } catch (e) { msg.textContent = 'Failed: ' + e.message; msg.className = 'admin-error'; }

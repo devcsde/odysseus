@@ -5143,6 +5143,7 @@ async function initUnifiedIntegrations() {
             </div>
             <div id="uf-mcp-sse-fields" style="display:none;flex-direction:column;gap:6px;">
               <div class="settings-row"><label class="settings-label">URL</label><input id="uf-mcp-url" class="settings-input" placeholder="http://localhost:3001/sse"></div>
+              <div class="settings-row" id="uf-mcp-headers-row" style="display:none;"><label class="settings-label">Custom Headers (JSON)</label><input id="uf-mcp-headers" class="settings-input" placeholder='{"Authorization": "Bearer sk_..."}'></div>
             </div>
             <div class="settings-row" style="margin-top:10px;align-items:center;justify-content:flex-end;gap:6px;">
               <span id="uf-mcp-msg" style="font-size:11px;flex:1;margin-right:8px"></span>
@@ -5156,6 +5157,7 @@ async function initUnifiedIntegrations() {
         const isUrl = (v === 'sse' || v === 'http');
         el('uf-mcp-stdio-fields').style.display = isUrl ? 'none' : 'flex';
         el('uf-mcp-sse-fields').style.display = isUrl ? 'flex' : 'none';
+        el('uf-mcp-headers-row').style.display = isUrl ? '' : 'none';
         const urlInput = el('uf-mcp-url');
         if (urlInput) urlInput.placeholder = (v === 'http') ? 'https://mcp.example.com/mcp' : 'http://localhost:3001/sse';
       });
@@ -5174,6 +5176,14 @@ async function initUnifiedIntegrations() {
           fd.append('env', env);
         } else {
           fd.append('url', el('uf-mcp-url').value);
+          const headersRaw = (el('uf-mcp-headers')?.value || '').trim();
+          if (headersRaw) {
+            try { JSON.parse(headersRaw); } catch (_) {
+              el('uf-mcp-msg').textContent = 'Headers must be valid JSON';
+              return;
+            }
+            fd.append('headers', headersRaw);
+          }
         }
         const saveBtn = el('uf-mcp-save'), cancelBtn = el('uf-mcp-cancel');
         const _origLabel = saveBtn.textContent;
